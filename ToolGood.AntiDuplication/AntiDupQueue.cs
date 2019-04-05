@@ -96,8 +96,10 @@ namespace ToolGood.AntiDuplication
                 slim.ExitWriteLock();
             }
         }
-
-        public void Flush()
+        /// <summary>
+        /// 清空
+        /// </summary>
+        public void Clear()
         {
             _lock.EnterWriteLock();
             try {

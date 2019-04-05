@@ -12,8 +12,7 @@ namespace ToolGood.AntiDuplication
     public class AntiDupCache<TKey, TValue>
     {
         private readonly int _maxCount;//缓存最高数量
-        private readonly int _expireSecond;//超时秒数
-        private readonly long _sencondTicks;// 1秒的Ticks值
+        private readonly long _expireTicks;//超时 Ticks
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
         private readonly Dictionary<TKey, Tuple<long, TValue>> _map = new Dictionary<TKey, Tuple<long, TValue>>();
         private readonly Dictionary<TKey, ReaderWriterLockSlim> _lockDict = new Dictionary<TKey, ReaderWriterLockSlim>();
@@ -27,8 +26,7 @@ namespace ToolGood.AntiDuplication
         public AntiDupCache(int maxCount = 100, int expireSecond = 1)
         {
             _maxCount = maxCount;
-            _expireSecond = expireSecond;
-            _sencondTicks = TimeSpan.FromSeconds(1).Ticks;
+            _expireTicks = expireSecond * TimeSpan.FromSeconds(1).Ticks;
         }
 
         /// <summary>
@@ -50,7 +48,7 @@ namespace ToolGood.AntiDuplication
             _lock.EnterReadLock();
             try {
                 if (_map.TryGetValue(key, out tuple)) {
-                    if (tuple.Item1 + _expireSecond * _sencondTicks > DateTime.Now.Ticks) {
+                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
                         return tuple.Item2;
                     }
                     _lockDict.TryGetValue(key, out slim);
@@ -76,30 +74,32 @@ namespace ToolGood.AntiDuplication
                 _lock.EnterReadLock();
                 try {
                     if (_map.TryGetValue(key, out tuple)) {
-                        if (tuple.Item1 + _expireSecond * _sencondTicks > DateTime.Now.Ticks) {
+                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
                             return tuple.Item2;
                         }
                     }
                 } finally {
                     _lock.ExitReadLock();
                 }
-        
+
                 var val = factory();
 
                 _lock.EnterWriteLock();
                 try {
                     _map[key] = Tuple.Create(DateTime.Now.Ticks, val);
-                    if (tuple == null) {
-                        if (_lockDict.ContainsKey(key) == false) {
-                            _lockDict[key] = slim;
-                        }
-                        _queue.Enqueue(key);
-                        if (_queue.Count > _maxCount) {
-                            var oldKey = _queue.Dequeue();
-                            _map.Remove(oldKey);
-                            _lockDict.Remove(oldKey);
-                        }
+
+                    if (_lockDict.ContainsKey(key) == false) {
+                        _lockDict[key] = slim;
                     }
+                    if (_queue.Contains(key) == false) {
+                        _queue.Enqueue(key);
+                    }
+                    if (_queue.Count > _maxCount) {
+                        var oldKey = _queue.Dequeue();
+                        _map.Remove(oldKey);
+                        _lockDict.Remove(oldKey);
+                    }
+
                 } finally {
                     _lock.ExitWriteLock();
                 }
@@ -109,8 +109,10 @@ namespace ToolGood.AntiDuplication
                 slim.ExitWriteLock();
             }
         }
-
-        public void Flush()
+        /// <summary>
+        /// 清空
+        /// </summary>
+        public void Clear()
         {
             // Cache it
             _lock.EnterWriteLock();

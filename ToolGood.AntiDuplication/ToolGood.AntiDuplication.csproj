@@ -1,7 +1,30 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>key.snk</AssemblyOriginatorKeyFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Authors>ToolGood</Authors>
+    <Company>ToolGood.com</Company>
+    <Description>Anti duplication submit 。防重复提交。</Description>
+    <Copyright>Copyright 2016-2019 ToolGood</Copyright>
+    <PackageLicenseUrl>https://github.com/toolgood/ToolGood.AntiDuplication/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/toolgood/ToolGood.AntiDuplication</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/toolgood/ToolGood.AntiDuplication.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>mvc;Anti duplication submit</PackageTags>
+  </PropertyGroup>
+
+ 
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
+    <DocumentationFile>bin\Release\netstandard2.0\ToolGood.AntiDuplication.xml</DocumentationFile>
+  </PropertyGroup>
+
+ 
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard2.0|AnyCPU'">
+    <DocumentationFile>bin\Debug\netstandard2.0\ToolGood.AntiDuplication.xml</DocumentationFile>
   </PropertyGroup>
 
 </Project>
