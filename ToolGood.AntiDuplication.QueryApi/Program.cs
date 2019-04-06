@@ -10,8 +10,8 @@ namespace ToolGood.AntiDuplication.QueryApi
 {
     class Program
     {
-        //private static AntiDupCache<string, int> antiDupCache = new AntiDupCache<string, int>(50, 1);
-        private static AntiDupQueue<string, int> antiDupCache = new AntiDupQueue<string, int>(50);
+        private static AntiDupCache<string, int> antiDupCache = new AntiDupCache<string, int>(50, 1);
+        //private static AntiDupQueue<string, int> antiDupCache = new AntiDupQueue<string, int>(50);
 
 
         static void Main(string[] args)
@@ -24,15 +24,41 @@ namespace ToolGood.AntiDuplication.QueryApi
             } catch (Exception ex) { }
 
             System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            Parallel.For(0, 1000, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, (j) => {
-                UserModel model = new UserModel() {
-                    Name = j.ToString(),
-                    Phone = j.ToString()
-                };
-                var id = Insert_2(model);
-                var id2 = Insert_2(model);
-                Console.WriteLine(id2);
+            Parallel.For(0, 7, (i) => {
+                if (i % 2 == 1) {
+                    for (int j = 0; j < 100; j++) {
+                        UserModel model = new UserModel() {
+                            Name = j.ToString(),
+                            Phone = j.ToString()
+                        };
+                        var id = Insert_2(model);
+                        var id2 = Insert_2(model);
+                        Console.WriteLine(i + "\t" + j + "\t" + id2);
+                    }
+                } else {
+                    for (int j = 100 - 1; j >= 0; j--) {
+                        UserModel model = new UserModel() {
+                            Name = j.ToString(),
+                            Phone = j.ToString()
+                        };
+                        var id = Insert_2(model);
+                        var id2 = Insert_2(model);
+                        Console.WriteLine(i + "\t" + j + "\t" + id2);
+                    }
+                }
+
             });
+
+
+            //Parallel.For(0, 1000, /*new ParallelOptions() { MaxDegreeOfParallelism = 8 },*/ (j) => {
+            //    UserModel model = new UserModel() {
+            //        Name = j.ToString(),
+            //        Phone = j.ToString()
+            //    };
+            //    var id = Insert_2(model);
+            //    var id2 = Insert_2(model);
+            //    Console.WriteLine(id2);
+            //});
             stopwatch.Stop();
             Console.WriteLine("共花了时间" + stopwatch.ElapsedMilliseconds + "ms");
 

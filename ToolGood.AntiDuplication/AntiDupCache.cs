@@ -13,10 +13,13 @@ namespace ToolGood.AntiDuplication
     {
         private readonly int _maxCount;//缓存最高数量
         private readonly long _expireTicks;//超时 Ticks
+        private long _lastTicks;//最后Ticks
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+        private readonly ReaderWriterLockSlim _slimLock = new ReaderWriterLockSlim();
         private readonly Dictionary<TKey, Tuple<long, TValue>> _map = new Dictionary<TKey, Tuple<long, TValue>>();
-        private readonly Dictionary<TKey, ReaderWriterLockSlim> _lockDict = new Dictionary<TKey, ReaderWriterLockSlim>();
+        private readonly Dictionary<TKey, AntiDupLockSlim> _lockDict = new Dictionary<TKey, AntiDupLockSlim>();
         private readonly Queue<TKey> _queue = new Queue<TKey>();
+
 
         /// <summary>
         /// 防重复缓存
@@ -43,37 +46,46 @@ namespace ToolGood.AntiDuplication
             }
 
             Tuple<long, TValue> tuple;
-            ReaderWriterLockSlim slim = null;
+            AntiDupLockSlim slim = null;
+            long lastTicks;
 
             _lock.EnterReadLock();
             try {
                 if (_map.TryGetValue(key, out tuple)) {
-                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
-                        return tuple.Item2;
-                    }
-                    _lockDict.TryGetValue(key, out slim);
+                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) { return tuple.Item2; }
                 }
+                lastTicks = _lastTicks;
             } finally {
                 _lock.ExitReadLock();
             }
 
-            if (slim == null) {
-                _lock.EnterWriteLock();
+            _slimLock.EnterUpgradeableReadLock();
+            try {
+                _lock.EnterReadLock();
                 try {
-                    if (_lockDict.TryGetValue(key, out slim) == false) {
-                        slim = new ReaderWriterLockSlim();
-                        _lockDict[key] = slim;
+                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
+                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) { return tuple.Item2; }
                     }
                 } finally {
-                    _lock.ExitWriteLock();
+                    _lock.ExitReadLock();
                 }
+                _slimLock.EnterWriteLock();
+                if (_lockDict.TryGetValue(key, out slim) == false) {
+                    slim = new AntiDupLockSlim();
+                    _lockDict[key] = slim;
+                }
+                slim.UseCount++;
+                _slimLock.ExitWriteLock();
+
+            } finally {
+                _slimLock.ExitUpgradeableReadLock();
             }
 
             slim.EnterWriteLock();
             try {
                 _lock.EnterReadLock();
                 try {
-                    if (_map.TryGetValue(key, out tuple)) {
+                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
                         if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
                             return tuple.Item2;
                         }
@@ -83,30 +95,26 @@ namespace ToolGood.AntiDuplication
                 }
 
                 var val = factory();
-
                 _lock.EnterWriteLock();
-                try {
-                    _map[key] = Tuple.Create(DateTime.Now.Ticks, val);
-
-                    if (_lockDict.ContainsKey(key) == false) {
-                        _lockDict[key] = slim;
-                    }
-                    if (_queue.Contains(key) == false) {
-                        _queue.Enqueue(key);
-                    }
+                _lastTicks = DateTime.Now.Ticks;
+                _map[key] = Tuple.Create(_lastTicks, val);
+                if (_queue.Contains(key) == false) {
+                    _queue.Enqueue(key);
                     if (_queue.Count > _maxCount) {
-                        var oldKey = _queue.Dequeue();
-                        _map.Remove(oldKey);
-                        _lockDict.Remove(oldKey);
+                        _map.Remove(_queue.Dequeue());
                     }
-
-                } finally {
-                    _lock.ExitWriteLock();
                 }
-
+                _lock.ExitWriteLock();
                 return val;
             } finally {
                 slim.ExitWriteLock();
+                _slimLock.EnterWriteLock();
+                slim.UseCount--;
+                if (slim.UseCount == 0) {
+                    _lockDict.Remove(key);
+                    slim.Dispose();
+                }
+                _slimLock.ExitWriteLock();
             }
         }
         /// <summary>

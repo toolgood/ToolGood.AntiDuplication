@@ -71,11 +71,5 @@
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\ToolGood.AntiDuplication\ToolGood.AntiDuplication.csproj">
-      <Project>{7cc9dd8f-3077-40bf-a144-35ad4f685b4e}</Project>
-      <Name>ToolGood.AntiDuplication</Name>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

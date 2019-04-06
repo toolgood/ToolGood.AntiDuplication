@@ -12,11 +12,14 @@ namespace ToolGood.AntiDuplication
     public class AntiDupQueue<TKey, TValue>
     {
         private readonly int _maxCount;//缓存最高数量
+        private long _lastTicks;//最后Ticks
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+        private readonly ReaderWriterLockSlim _slimLock = new ReaderWriterLockSlim();
         private readonly Dictionary<TKey, TValue> _map = new Dictionary<TKey, TValue>();
-        private readonly Dictionary<TKey, ReaderWriterLockSlim> _lockDict = new Dictionary<TKey, ReaderWriterLockSlim>();
+        private readonly Dictionary<TKey, AntiDupLockSlim> _lockDict = new Dictionary<TKey, AntiDupLockSlim>();
         private readonly Queue<TKey> _queue = new Queue<TKey>();
 
+        //private readonly List<ReaderWriterLockSlim> _usedLockSlims = new List<ReaderWriterLockSlim>();
 
         /// <summary>
         /// 防重复列队
@@ -40,26 +43,32 @@ namespace ToolGood.AntiDuplication
 
             _lock.EnterReadLock();
             TValue tuple;
-            ReaderWriterLockSlim slim;
+            AntiDupLockSlim slim;
+            long lastTicks;
             try {
-                if (_map.TryGetValue(key, out tuple)) {
-                    return tuple;
-                }
-                _lockDict.TryGetValue(key, out slim);
+                if (_map.TryGetValue(key, out tuple)) { return tuple; }
+                lastTicks = _lastTicks;
             } finally {
                 _lock.ExitReadLock();
             }
 
-            if (slim == null) {
-                _lock.EnterWriteLock();
+            _slimLock.EnterUpgradeableReadLock();
+            try {
+                _lock.EnterReadLock();
                 try {
-                    if (_lockDict.TryGetValue(key, out slim) == false) {
-                        slim = new ReaderWriterLockSlim();
-                        _lockDict[key] = slim;
-                    }
+                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) { return tuple; }
                 } finally {
-                    _lock.ExitWriteLock();
+                    _lock.ExitReadLock();
                 }
+                _slimLock.EnterWriteLock();
+                if (_lockDict.TryGetValue(key, out slim) == false) {
+                    slim = new AntiDupLockSlim();
+                    _lockDict[key] = slim;
+                }
+                slim.UseCount++;
+                _slimLock.ExitWriteLock();
+            } finally {
+                _slimLock.ExitUpgradeableReadLock();
             }
 
             slim.EnterWriteLock();
@@ -78,14 +87,10 @@ namespace ToolGood.AntiDuplication
                 _lock.EnterWriteLock();
                 try {
                     _map[key] = val;
-                    if (_lockDict.ContainsKey(key) == false) {
-                        _lockDict[key] = slim;
-                    }
                     _queue.Enqueue(key);
                     if (_queue.Count > _maxCount) {
                         var oldKey = _queue.Dequeue();
                         _map.Remove(oldKey);
-                        _lockDict.Remove(oldKey);
                     }
                 } finally {
                     _lock.ExitWriteLock();
@@ -94,6 +99,13 @@ namespace ToolGood.AntiDuplication
                 return val;
             } finally {
                 slim.ExitWriteLock();
+                _slimLock.EnterWriteLock();
+                slim.UseCount--;
+                if (slim.UseCount == 0) {
+                    _lockDict.Remove(key);
+                    slim.Dispose();
+                }
+                _slimLock.ExitWriteLock();
             }
         }
         /// <summary>
