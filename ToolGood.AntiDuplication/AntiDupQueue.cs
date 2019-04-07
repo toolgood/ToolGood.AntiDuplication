@@ -29,6 +29,12 @@ namespace ToolGood.AntiDuplication
         {
             _maxCount = maxCount;
         }
+        /// <summary>
+        /// 个数
+        /// </summary>
+        public int Count {
+            get { return _map.Count; }
+        }
 
         /// <summary>
         /// 执行
@@ -61,12 +67,15 @@ namespace ToolGood.AntiDuplication
                     _lock.ExitReadLock();
                 }
                 _slimLock.EnterWriteLock();
-                if (_lockDict.TryGetValue(key, out slim) == false) {
-                    slim = new AntiDupLockSlim();
-                    _lockDict[key] = slim;
+                try {
+                    if (_lockDict.TryGetValue(key, out slim) == false) {
+                        slim = new AntiDupLockSlim();
+                        _lockDict[key] = slim;
+                    }
+                    slim.UseCount++;
+                } finally {
+                    _slimLock.ExitWriteLock();
                 }
-                slim.UseCount++;
-                _slimLock.ExitWriteLock();
             } finally {
                 _slimLock.ExitUpgradeableReadLock();
             }
@@ -75,9 +84,7 @@ namespace ToolGood.AntiDuplication
             try {
                 _lock.EnterReadLock();
                 try {
-                    if (_map.TryGetValue(key, out tuple)) {
-                        return tuple;
-                    }
+                    if (_map.TryGetValue(key, out tuple)) { return tuple; }
                 } finally {
                     _lock.ExitReadLock();
                 }

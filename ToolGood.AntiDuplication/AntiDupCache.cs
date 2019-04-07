@@ -37,6 +37,13 @@ namespace ToolGood.AntiDuplication
         }
 
         /// <summary>
+        /// 个数
+        /// </summary>
+        public int Count {
+            get { return _map.Count; }
+        }
+
+        /// <summary>
         /// 执行
         /// </summary>
         /// <param name="key">值</param>
@@ -50,80 +57,65 @@ namespace ToolGood.AntiDuplication
             }
 
             Tuple<long, TValue> tuple;
-            AntiDupLockSlim slim = null;
+            AntiDupLockSlim slim;
             long lastTicks;
 
             _lock.EnterReadLock();
             try {
                 if (_map.TryGetValue(key, out tuple)) {
-                    if (_expireTicks == -1) {
-                        return tuple.Item2;
-                    }
-                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
-                        return tuple.Item2;
-                    }
+                    if (_expireTicks == -1) return tuple.Item2;
+                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
                 }
                 lastTicks = _lastTicks;
-            } finally {
-                _lock.ExitReadLock();
-            }
+            } finally { _lock.ExitReadLock(); }
 
             _slimLock.EnterUpgradeableReadLock();
             try {
                 _lock.EnterReadLock();
                 try {
                     if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (_expireTicks == -1) {
-                            return tuple.Item2;
-                        }
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
-                            return tuple.Item2;
-                        }
+                        if (_expireTicks == -1) return tuple.Item2;
+                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
                     }
-                } finally {
-                    _lock.ExitReadLock();
-                }
-                _slimLock.EnterWriteLock();
-                if (_lockDict.TryGetValue(key, out slim) == false) {
-                    slim = new AntiDupLockSlim();
-                    _lockDict[key] = slim;
-                }
-                slim.UseCount++;
-                _slimLock.ExitWriteLock();
+                } finally { _lock.ExitReadLock(); }
 
+                _slimLock.EnterWriteLock();
+                try {
+                    if (_lockDict.TryGetValue(key, out slim) == false) {
+                        slim = new AntiDupLockSlim();
+                        _lockDict[key] = slim;
+                    }
+                    slim.UseCount++;
+                } finally { _slimLock.ExitWriteLock(); }
             } finally {
                 _slimLock.ExitUpgradeableReadLock();
             }
+
 
             slim.EnterWriteLock();
             try {
                 _lock.EnterReadLock();
                 try {
                     if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (_expireTicks == -1) {
-                            return tuple.Item2;
-                        }
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
-                            return tuple.Item2;
-                        }
+                        if (_expireTicks == -1) return tuple.Item2;
+                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
                     }
-                } finally {
-                    _lock.ExitReadLock();
-                }
+                } finally { _lock.ExitReadLock(); }
 
                 var val = factory();
                 _lock.EnterWriteLock();
-                _lastTicks = DateTime.Now.Ticks;
-                _map[key] = Tuple.Create(_lastTicks, val);
-                if (_maxCount > 0) {
-                    if (_queue.Contains(key) == false) {
-                        _queue.Enqueue(key);
-                        if (_queue.Count > _maxCount) {
-                            _map.Remove(_queue.Dequeue());
+                try {
+                    _lastTicks = DateTime.Now.Ticks;
+                    _map[key] = Tuple.Create(_lastTicks, val);
+                    if (_maxCount > 0) {
+                        if (_queue.Contains(key) == false) {
+                            _queue.Enqueue(key);
+                            if (_queue.Count > _maxCount) {
+                                _map.Remove(_queue.Dequeue());
+                            }
                         }
                     }
-                }
-                _lock.ExitWriteLock();
+                } finally { _lock.ExitWriteLock(); }
                 return val;
             } finally {
                 slim.ExitWriteLock();
