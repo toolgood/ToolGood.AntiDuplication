@@ -52,14 +52,10 @@ namespace ToolGood.AntiDuplication
         public TValue Execute(TKey key, Func<TValue> factory)
         {
             // 过期时间为0 则不缓存
-            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) {
-                return factory();
-            }
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return factory(); }
 
             Tuple<long, TValue> tuple;
-            AntiDupLockSlim slim;
             long lastTicks;
-
             _lock.EnterReadLock();
             try {
                 if (_map.TryGetValue(key, out tuple)) {
@@ -69,13 +65,18 @@ namespace ToolGood.AntiDuplication
                 lastTicks = _lastTicks;
             } finally { _lock.ExitReadLock(); }
 
+
+            AntiDupLockSlim slim;
             _slimLock.EnterUpgradeableReadLock();
             try {
                 _lock.EnterReadLock();
                 try {
-                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (_expireTicks == -1) return tuple.Item2;
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
+                    if (_lastTicks != lastTicks) {
+                        if (_map.TryGetValue(key, out tuple)) {
+                            if (_expireTicks == -1) return tuple.Item2;
+                            if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
+                        }
+                        lastTicks = _lastTicks;
                     }
                 } finally { _lock.ExitReadLock(); }
 
@@ -87,9 +88,7 @@ namespace ToolGood.AntiDuplication
                     }
                     slim.UseCount++;
                 } finally { _slimLock.ExitWriteLock(); }
-            } finally {
-                _slimLock.ExitUpgradeableReadLock();
-            }
+            } finally { _slimLock.ExitUpgradeableReadLock(); }
 
 
             slim.EnterWriteLock();
@@ -110,9 +109,7 @@ namespace ToolGood.AntiDuplication
                     if (_maxCount > 0) {
                         if (_queue.Contains(key) == false) {
                             _queue.Enqueue(key);
-                            if (_queue.Count > _maxCount) {
-                                _map.Remove(_queue.Dequeue());
-                            }
+                            if (_queue.Count > _maxCount) _map.Remove(_queue.Dequeue());
                         }
                     }
                 } finally { _lock.ExitWriteLock(); }
@@ -120,12 +117,13 @@ namespace ToolGood.AntiDuplication
             } finally {
                 slim.ExitWriteLock();
                 _slimLock.EnterWriteLock();
-                slim.UseCount--;
-                if (slim.UseCount == 0) {
-                    _lockDict.Remove(key);
-                    slim.Dispose();
-                }
-                _slimLock.ExitWriteLock();
+                try {
+                    slim.UseCount--;
+                    if (slim.UseCount == 0) {
+                        _lockDict.Remove(key);
+                        slim.Dispose();
+                    }
+                } finally { _slimLock.ExitWriteLock(); }
             }
         }
         /// <summary>
