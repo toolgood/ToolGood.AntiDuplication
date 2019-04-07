@@ -24,7 +24,7 @@ namespace ToolGood.AntiDuplication
         /// <summary>
         /// 防重复列队
         /// </summary>
-        /// <param name="maxCount">缓存最高数量</param>
+        /// <param name="maxCount">缓存最高数量，0或负数不缓存</param>
         public AntiDupQueue(int maxCount = 100)
         {
             _maxCount = maxCount;

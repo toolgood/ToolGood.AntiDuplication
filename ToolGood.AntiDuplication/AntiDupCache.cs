@@ -24,12 +24,16 @@ namespace ToolGood.AntiDuplication
         /// <summary>
         /// 防重复缓存
         /// </summary>
-        /// <param name="maxCount">缓存最高数量</param>
-        /// <param name="expireSecond">超时秒数</param>
+        /// <param name="maxCount">缓存最高数量,0 不缓存，-1 缓存所有</param>
+        /// <param name="expireSecond">超时秒数,0 不缓存，-1 永久缓存 </param>
         public AntiDupCache(int maxCount = 100, int expireSecond = 1)
         {
             _maxCount = maxCount;
-            _expireTicks = expireSecond * TimeSpan.FromSeconds(1).Ticks;
+            if (expireSecond < 0) {
+                _expireTicks = -1;
+            } else {
+                _expireTicks = expireSecond * TimeSpan.FromSeconds(1).Ticks;
+            }
         }
 
         /// <summary>
@@ -41,7 +45,7 @@ namespace ToolGood.AntiDuplication
         public TValue Execute(TKey key, Func<TValue> factory)
         {
             // 过期时间为0 则不缓存
-            if (object.Equals(null, key) || _maxCount <= 0) {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) {
                 return factory();
             }
 
@@ -52,7 +56,12 @@ namespace ToolGood.AntiDuplication
             _lock.EnterReadLock();
             try {
                 if (_map.TryGetValue(key, out tuple)) {
-                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) { return tuple.Item2; }
+                    if (_expireTicks == -1) {
+                        return tuple.Item2;
+                    }
+                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
+                        return tuple.Item2;
+                    }
                 }
                 lastTicks = _lastTicks;
             } finally {
@@ -64,7 +73,12 @@ namespace ToolGood.AntiDuplication
                 _lock.EnterReadLock();
                 try {
                     if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) { return tuple.Item2; }
+                        if (_expireTicks == -1) {
+                            return tuple.Item2;
+                        }
+                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
+                            return tuple.Item2;
+                        }
                     }
                 } finally {
                     _lock.ExitReadLock();
@@ -86,6 +100,9 @@ namespace ToolGood.AntiDuplication
                 _lock.EnterReadLock();
                 try {
                     if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
+                        if (_expireTicks == -1) {
+                            return tuple.Item2;
+                        }
                         if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
                             return tuple.Item2;
                         }
@@ -98,10 +115,12 @@ namespace ToolGood.AntiDuplication
                 _lock.EnterWriteLock();
                 _lastTicks = DateTime.Now.Ticks;
                 _map[key] = Tuple.Create(_lastTicks, val);
-                if (_queue.Contains(key) == false) {
-                    _queue.Enqueue(key);
-                    if (_queue.Count > _maxCount) {
-                        _map.Remove(_queue.Dequeue());
+                if (_maxCount > 0) {
+                    if (_queue.Contains(key) == false) {
+                        _queue.Enqueue(key);
+                        if (_queue.Count > _maxCount) {
+                            _map.Remove(_queue.Dequeue());
+                        }
                     }
                 }
                 _lock.ExitWriteLock();
