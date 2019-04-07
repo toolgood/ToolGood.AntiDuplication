@@ -16,17 +16,21 @@ namespace ToolGood.AntiDuplication.QueryApi
 
         static void Main(string[] args)
         {
-            try {
-                var helper = Config.MySqlHelper;
-                helper.Execute("TRUNCATE TABLE Users");
-                //helper._TableHelper.CreateTable(typeof(DbUser));
-                helper.Dispose();
-            } catch (Exception ex) { }
+            //try {
+            //    var helper = Config.MySqlHelper;
+            //    helper.Execute("TRUNCATE TABLE Users");
+            //    //helper._TableHelper.CreateTable(typeof(DbUser));
+            //    helper.Dispose();
+            //} catch (Exception ex) { }
+            //Demo1();
 
             System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            Parallel.For(0, 7, (i) => {
+            Parallel.For(0, 7,  (i) => {
                 if (i % 2 == 1) {
-                    for (int j = 0; j < 100; j++) {
+
+                    for (int j = 0; j < 1000; j++) {
+
+
                         UserModel model = new UserModel() {
                             Name = j.ToString(),
                             Phone = j.ToString()
@@ -36,7 +40,9 @@ namespace ToolGood.AntiDuplication.QueryApi
                         Console.WriteLine(i + "\t" + j + "\t" + id2);
                     }
                 } else {
-                    for (int j = 100 - 1; j >= 0; j--) {
+                    for (int j = 1000 - 1; j >= 0; j--) {
+
+
                         UserModel model = new UserModel() {
                             Name = j.ToString(),
                             Phone = j.ToString()
@@ -51,18 +57,48 @@ namespace ToolGood.AntiDuplication.QueryApi
 
 
             //Parallel.For(0, 1000, /*new ParallelOptions() { MaxDegreeOfParallelism = 8 },*/ (j) => {
-            //    UserModel model = new UserModel() {
-            //        Name = j.ToString(),
-            //        Phone = j.ToString()
-            //    };
-            //    var id = Insert_2(model);
-            //    var id2 = Insert_2(model);
-            //    Console.WriteLine(id2);
+            //    Thread.Sleep(20);
+            //    //UserModel model = new UserModel() {
+            //    //    Name = j.ToString(),
+            //    //    Phone = j.ToString()
+            //    //};
+            //    ////var id = Insert_2(model);
+            //    //var id2 = Insert_2(model);
+            //    Console.WriteLine(j.ToString());
             //});
             stopwatch.Stop();
             Console.WriteLine("共花了时间" + stopwatch.ElapsedMilliseconds + "ms");
 
             Console.ReadLine();
+
+        }
+        /// <summary>
+        /// 原子操作-计数
+        /// </summary>
+        public static void Demo1()
+        {
+            Task.Run(() => {
+                long total = 0;
+                long result = 0;
+
+                PrintInfo("正在计数");
+
+                Parallel.For(0, 10, (i) => {
+                    for (int j = 0; j < 10000000; j++) {
+                        Interlocked.Increment(ref total);
+                         result++;
+                    }
+                });
+
+                PrintInfo($"操作结果应该为\t\t: {10 * 10000000}");
+                PrintInfo($"原子操作结果\t\t: {total}");
+                PrintInfo($"i++操作结果\t\t: {result}");
+            });
+        }
+
+        private static void PrintInfo(string v)
+        {
+            Console.WriteLine(v);
 
         }
 
