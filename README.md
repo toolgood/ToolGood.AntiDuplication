@@ -7,26 +7,30 @@ ToolGood.AntiDuplication
 ### 快速上手
 
 ```` csharp
-        private readonly static AntiDupCache<int, int> antiDupCache = new AntiDupCache<int, int>(50, 1);
-        private readonly static AntiDupQueue<int, int> antiDupQueue = new AntiDupQueue<int, int>(50);
-        private readonly static DictCache<int, int> dictCache = new DictCache<int, int>();
+	private readonly static AntiDupCache<int, int> antiDupCache = new AntiDupCache<int, int>(50, 1);
+	private readonly static AntiDupQueue<int, int> antiDupQueue = new AntiDupQueue<int, int>(50);
+	private readonly static DictCache<int, int> dictCache = new DictCache<int, int>();
 
-		antiDupCache.Execute(key, () => {
-			....
-			return val;
-		});
+	antiDupCache.Execute(key, () => {
+		....
+		return val;
+	});
 
-		antiDupQueue.Execute(key, () => {
-			....
-			return val;
-		});
+	antiDupQueue.Execute(key, () => {
+		....
+		return val;
+	});
 
-		dictCache.Execute(key, () => {
-			....
-			return val;
-		});
+	dictCache.Execute(key, () => {
+		....
+		return val;
+	});
+
 `````
-注意：`DictCache`需要手动清空缓存。
+
+注意：`AntiDupCache`、`AntiDupQueue`、`DictCache`类的`Execute`方法中的`key`不要设置为`null`，`key`为null时，不缓存值。
+
+注意：`DictCache`需要手动调用`Clear`方法清空缓存。
 
 
 
@@ -158,5 +162,5 @@ AntiDupQueue： 79   102  118  149  154  136  183  192  178  214  206  184
          Cache： 183  185  185  186  186  182  183  177  181  176  173  181
 第二次普通并发： 2214 1136 766  571  467  380  319  298  253  226  205  195
 
------------------------ 结束 -----------------------
+
 ````
