@@ -5,10 +5,6 @@ VisualStudioVersion = 15.0.28307.329
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ToolGood.AntiDuplication", "ToolGood.AntiDuplication\ToolGood.AntiDuplication.csproj", "{7CC9DD8F-3077-40BF-A144-35AD4F685B4E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ToolGood.AntiDuplication.WebDemo", "ToolGood.AntiDuplication.WebDemo\ToolGood.AntiDuplication.WebDemo.csproj", "{825B1607-8332-4ABE-9B70-F61288E6FF59}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToolGood.AntiDuplication.QueryApi", "ToolGood.AntiDuplication.QueryApi\ToolGood.AntiDuplication.QueryApi.csproj", "{62814FF7-1D48-4606-A4C5-85014B9D123A}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToolGood.AntiDuplication.Test", "ToolGood.AntiDuplication.Test\ToolGood.AntiDuplication.Test.csproj", "{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}"
 EndProject
 Global
@@ -21,14 +17,6 @@ Global
 		{7CC9DD8F-3077-40BF-A144-35AD4F685B4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7CC9DD8F-3077-40BF-A144-35AD4F685B4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7CC9DD8F-3077-40BF-A144-35AD4F685B4E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{825B1607-8332-4ABE-9B70-F61288E6FF59}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{825B1607-8332-4ABE-9B70-F61288E6FF59}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{825B1607-8332-4ABE-9B70-F61288E6FF59}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{825B1607-8332-4ABE-9B70-F61288E6FF59}.Release|Any CPU.Build.0 = Release|Any CPU
-		{62814FF7-1D48-4606-A4C5-85014B9D123A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{62814FF7-1D48-4606-A4C5-85014B9D123A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{62814FF7-1D48-4606-A4C5-85014B9D123A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{62814FF7-1D48-4606-A4C5-85014B9D123A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
