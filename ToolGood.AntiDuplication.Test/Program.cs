@@ -218,7 +218,7 @@ namespace ToolGood.AntiDuplication.Test
             antiDupQueue.Clear();
             dictCache.Clear();
             cache.Clear();
-            Console.WriteLine($"----------------------- 防线上环境  从1到{count}  单位： ms -----------------------");
+            Console.WriteLine($"----------------------- 仿线上环境  从1到{count}  单位： ms -----------------------");
             Console.Write("      并发数量： ");
             for (int i = 1; i <= lism; i++) {
                 Console.Write(i.ToString().PadRight(5));
