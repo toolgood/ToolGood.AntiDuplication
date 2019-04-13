@@ -18,6 +18,7 @@ namespace ToolGood.AntiDuplication
         private readonly Dictionary<TKey, TValue> _map = new Dictionary<TKey, TValue>();
         private readonly Dictionary<TKey, AntiDupLockSlim> _lockDict = new Dictionary<TKey, AntiDupLockSlim>();
         private readonly Queue<TKey> _queue = new Queue<TKey>();
+        class AntiDupLockSlim : ReaderWriterLockSlim { public int UseCount; }
 
         /// <summary>
         /// 防重复列队
@@ -25,7 +26,11 @@ namespace ToolGood.AntiDuplication
         /// <param name="maxCount">缓存最高数量，0或负数不缓存</param>
         public AntiDupQueue(int maxCount = 100)
         {
-            _maxCount = maxCount;
+            if (maxCount < 0) {
+                _maxCount = 0;
+            } else {
+                _maxCount = maxCount;
+            }
         }
 
         /// <summary>
@@ -44,7 +49,7 @@ namespace ToolGood.AntiDuplication
         public TValue Execute(TKey key, Func<TValue> factory)
         {
             // 过期时间为0 则不缓存
-            if (object.Equals(null, key) || _maxCount <= 0) { return factory(); }
+            if (object.Equals(null, key) || _maxCount == 0) { return factory(); }
 
             _lock.EnterReadLock();
             TValue tuple;
@@ -117,8 +122,13 @@ namespace ToolGood.AntiDuplication
             _lock.EnterWriteLock();
             try {
                 _map.Clear();
-                _lockDict.Clear();
                 _queue.Clear();
+                _slimLock.EnterWriteLock();
+                try {
+                    _lockDict.Clear();
+                } finally {
+                    _slimLock.ExitWriteLock();
+                }
             } finally {
                 _lock.ExitWriteLock();
             }
