@@ -331,13 +331,18 @@ namespace ToolGood.AntiDuplication.Test
             Random random = new Random();
 
             List<int> list = new List<int>();
-            for (int i = 0; i < count; i++) {
-                list.Add(i);
-                if (random.NextDouble() > 0.99) {
+            while (true) {
+                for (int i = 0; i < count; i++) {
                     list.Add(i);
+                    if (random.NextDouble() > 0.99) {
+                        list.Add(i);
+                    }
                 }
+                if (list.Count- count > 10) {
+                    return list;
+                }
+                list.Clear();
             }
-            return list;
         }
 
     }
