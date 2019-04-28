@@ -13,6 +13,7 @@ namespace ToolGood.AntiDuplication
     /// <typeparam name="TValue"></typeparam>
     public class DictCache<TKey, TValue>
     {
+        private const int _thousand = 1000;
         private long _lastTicks;//最后Ticks
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
         private readonly ReaderWriterLockSlim _slimLock = new ReaderWriterLockSlim();
@@ -31,8 +32,9 @@ namespace ToolGood.AntiDuplication
         /// <summary>
         /// 执行
         /// </summary>
-        /// <param name="key"></param>
-        /// <param name="factory"></param>
+        /// <param name="key">值</param>
+        /// <param name="factory">执行方法</param>
+        /// <returns></returns>
         /// <returns></returns>
         public TValue Execute(TKey key, Func<TValue> factory)
         {
@@ -85,6 +87,74 @@ namespace ToolGood.AntiDuplication
             } finally {
                 slim.ExitWriteLock();
                 _slimLock.EnterWriteLock();
+                try {
+                    slim.UseCount--;
+                    if (slim.UseCount == 0) {
+                        _lockDict.Remove(key);
+                        slim.Dispose();
+                    }
+                } finally { _slimLock.ExitWriteLock(); }
+            }
+        }
+
+        /// <summary>
+        /// 执行
+        /// </summary>
+        /// <param name="key">值</param>
+        /// <param name="secord">每次超时秒数，最多8次</param>
+        /// <param name="factory">执行方法</param>
+        /// <returns></returns>
+        public TValue Execute(TKey key, int secord, Func<TValue> factory)
+        {
+            if (object.Equals(key, null)) { return factory(); }
+
+            long lastTicks;
+            TValue val;
+            _lock.TryEnterReadLock(secord * _thousand);
+            try {
+                if (_map.TryGetValue(key, out val)) return val;
+                lastTicks = _lastTicks;
+            } finally { _lock.ExitReadLock(); }
+
+            AntiDupLockSlim slim;
+            _slimLock.TryEnterUpgradeableReadLock(secord * _thousand);
+            try {
+                _lock.TryEnterReadLock(secord * _thousand);
+                try {
+                    if (_lastTicks != lastTicks) {
+                        if (_map.TryGetValue(key, out val)) return val;
+                        lastTicks = _lastTicks;
+                    }
+                } finally { _lock.ExitReadLock(); }
+
+                _slimLock.TryEnterWriteLock(secord * _thousand);
+                try {
+                    if (_lockDict.TryGetValue(key, out slim) == false) {
+                        slim = new AntiDupLockSlim();
+                        _lockDict[key] = slim;
+                    }
+                    slim.UseCount++;
+                } finally { _slimLock.ExitWriteLock(); }
+            } finally { _slimLock.ExitUpgradeableReadLock(); }
+
+
+            slim.TryEnterWriteLock(secord * _thousand);
+            try {
+                _lock.TryEnterReadLock(secord * _thousand);
+                try {
+                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out val)) return val;
+                } finally { _lock.ExitReadLock(); }
+
+                val = factory();
+                _lock.TryEnterWriteLock(secord * _thousand);
+                try {
+                    _lastTicks = DateTime.Now.Ticks;
+                    _map[key] = val;
+                } finally { _lock.ExitWriteLock(); }
+                return val;
+            } finally {
+                slim.ExitWriteLock();
+                _slimLock.TryEnterWriteLock(secord * _thousand);
                 try {
                     slim.UseCount--;
                     if (slim.UseCount == 0) {
