@@ -11,7 +11,7 @@ namespace ToolGood.AntiDuplication
     /// </summary>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TValue"></typeparam>
-    public class DictCache<TKey, TValue>
+    public class DictCache<TKey, TValue> : IExecuteCache<TKey, TValue>
     {
         private const int _thousand = 1000;
         private long _lastTicks;//最后Ticks

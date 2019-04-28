@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace ToolGood.AntiDuplication
 {
@@ -9,7 +10,7 @@ namespace ToolGood.AntiDuplication
     /// </summary>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TValue"></typeparam>
-    public class AntiDupCache<TKey, TValue>
+    public class AntiDupCache<TKey, TValue> : IExecuteCache<TKey, TValue>
     {
         private const int _thousand = 1000;
         private readonly int _maxCount;//缓存最高数量
@@ -131,6 +132,7 @@ namespace ToolGood.AntiDuplication
                 } finally { _slimLock.ExitWriteLock(); }
             }
         }
+
 
         /// <summary>
         /// 执行
