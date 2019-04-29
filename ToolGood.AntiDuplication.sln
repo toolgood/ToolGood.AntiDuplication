@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ToolGood.AntiDuplication", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToolGood.AntiDuplication.Test", "ToolGood.AntiDuplication.Test\ToolGood.AntiDuplication.Test.csproj", "{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToolGood.AntiDuplication.Redis.StackExchange", "ToolGood.AntiDuplication.Redis.StackExchange\ToolGood.AntiDuplication.Redis.StackExchange.csproj", "{FCFBC3E7-5E3E-48EF-80F7-329CF3C8223E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F61F9E8-0976-49F8-8D44-F228EE2CFDC0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FCFBC3E7-5E3E-48EF-80F7-329CF3C8223E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCFBC3E7-5E3E-48EF-80F7-329CF3C8223E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCFBC3E7-5E3E-48EF-80F7-329CF3C8223E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCFBC3E7-5E3E-48EF-80F7-329CF3C8223E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

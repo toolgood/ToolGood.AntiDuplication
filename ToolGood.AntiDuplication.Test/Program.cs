@@ -28,7 +28,11 @@ namespace ToolGood.AntiDuplication.Test
                 Test(count, processorCount);
             }
 
-
+            //antiDupQueue.Execute(1,   () => {
+            //    var task = Task.Run(() => { return 1; });
+            //    var val = await task;
+            //    return val;
+            //});
 
 
             Console.WriteLine("----------------------- 结束 -----------------------");
