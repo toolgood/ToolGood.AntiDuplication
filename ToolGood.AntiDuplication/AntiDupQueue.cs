@@ -36,6 +36,7 @@ namespace ToolGood.AntiDuplication
         }
 
 
+
         #region 属性
         /// <summary>
         /// 获取缓存个数
@@ -77,7 +78,7 @@ namespace ToolGood.AntiDuplication
             // 过期时间为0 则不缓存
             if (object.Equals(null, key) || _maxCount == 0) { return val; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
@@ -123,7 +124,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return addValue; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, updateValue);
@@ -157,7 +158,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryGetValue(TKey key, out TValue value, int secord = 0)
         {
-            value = default(TValue);
+            value = default;
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
             long lastTicks = 0;
@@ -194,7 +195,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, newValue);
@@ -214,7 +215,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, comparisonValue)) {
@@ -233,7 +234,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryRemove(TKey key, out TValue value, int secord = 0)
         {
-            value = default(TValue);
+            value = default;
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
             return tryRemove(key, ref value, secord);
         }
@@ -275,7 +276,7 @@ namespace ToolGood.AntiDuplication
             // 过期时间为0 则不缓存
             if (object.Equals(null, key) || _maxCount == 0) { return factory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
@@ -323,7 +324,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return addValueFactory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 value = updateValueFactory();
@@ -374,7 +375,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, updateValueFactory(), secord);
@@ -394,7 +395,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, comparisonValue)) {
@@ -421,7 +422,7 @@ namespace ToolGood.AntiDuplication
             // 过期时间为0 则不缓存
             if (object.Equals(null, key) || _maxCount == 0) { return await factory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
@@ -469,7 +470,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return await addValueFactory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 value = await updateValueFactory();
@@ -520,7 +521,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, await updateValueFactory(), secord);
@@ -540,7 +541,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, comparisonValue)) {
@@ -562,7 +563,7 @@ namespace ToolGood.AntiDuplication
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, await comparisonValueFactory())) {
@@ -597,7 +598,6 @@ namespace ToolGood.AntiDuplication
             }
         }
         #endregion
-
 
         #region private 方法
         private bool tryGet(TKey key, ref TValue value, ref long lastTicks, int secord = 0)

@@ -62,9 +62,9 @@ namespace ToolGood.AntiDuplication
         public TValue GetOrAdd(TKey key, TValue val, int secord = 0)
         {
             // 过期时间为0 则不缓存
-            if (object.Equals(null, key) ) { return val; }
+            if (object.Equals(null, key)) { return val; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
@@ -94,7 +94,7 @@ namespace ToolGood.AntiDuplication
         /// <param name="value">值</param>
         public void SetValue(TKey key, TValue value, int secord = 0)
         {
-            if (object.Equals(null, key) ) return;
+            if (object.Equals(null, key)) return;
             trySet(key, value, secord);
         }
 
@@ -108,9 +108,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public TValue AddOrUpdate(TKey key, TValue addValue, TValue updateValue, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return addValue; }
+            if (object.Equals(null, key)) { return addValue; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, updateValue);
@@ -144,8 +144,8 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryGetValue(TKey key, out TValue value, int secord = 0)
         {
-            value = default(TValue);
-            if (object.Equals(null, key) ) { return false; }
+            value = default;
+            if (object.Equals(null, key)) { return false; }
 
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) { return true; }
@@ -161,7 +161,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryAdd(TKey key, TValue value, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord) == false) {
@@ -179,9 +179,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryUpdate(TKey key, TValue newValue, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, newValue);
@@ -199,9 +199,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryUpdate(TKey key, TValue newValue, TValue comparisonValue, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, comparisonValue)) {
@@ -220,8 +220,8 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryRemove(TKey key, out TValue value, int secord = 0)
         {
-            value = default(TValue);
-            if (object.Equals(null, key) ) { return false; }
+            value = default;
+            if (object.Equals(null, key)) { return false; }
             return tryRemove(key, ref value, secord);
         }
         /// <summary>
@@ -231,7 +231,7 @@ namespace ToolGood.AntiDuplication
         /// <param name="secord">每次超时秒数</param>
         public void Remove(TKey key, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return; }
+            if (object.Equals(null, key)) { return; }
             tryRemove(key, secord);
         }
         /// <summary>
@@ -242,7 +242,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool ContainsKey(TKey key, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
             return containsKey(key, secord);
         }
@@ -260,9 +260,9 @@ namespace ToolGood.AntiDuplication
         public TValue GetOrAdd(TKey key, Func<TValue> factory, int secord = 0)
         {
             // 过期时间为0 则不缓存
-            if (object.Equals(null, key) ) { return factory(); }
+            if (object.Equals(null, key)) { return factory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
@@ -293,7 +293,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public TValue SetValue(TKey key, Func<TValue> factory, int secord = 0)
         {
-            if (object.Equals(null, key) ) return factory();
+            if (object.Equals(null, key)) return factory();
             var value = factory();
             trySet(key, value, secord);
             return value;
@@ -308,9 +308,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public TValue AddOrUpdate(TKey key, Func<TValue> addValueFactory, Func<TValue> updateValueFactory, int secord)
         {
-            if (object.Equals(null, key) ) { return addValueFactory(); }
+            if (object.Equals(null, key)) { return addValueFactory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 value = updateValueFactory();
@@ -345,7 +345,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryAdd(TKey key, Func<TValue> factory, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
             var value = factory();
             trySet(key, value, secord);
             return true;
@@ -359,9 +359,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryUpdate(TKey key, Func<TValue> updateValueFactory, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, updateValueFactory(), secord);
@@ -379,9 +379,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public bool TryUpdate(TKey key, Func<TValue> updateValueFactory, TValue comparisonValue, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, comparisonValue)) {
@@ -406,9 +406,9 @@ namespace ToolGood.AntiDuplication
         public async Task<TValue> GetOrAdd(TKey key, Func<Task<TValue>> factory, int secord = 0)
         {
             // 过期时间为0 则不缓存
-            if (object.Equals(null, key) ) { return await factory(); }
+            if (object.Equals(null, key)) { return await factory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
@@ -439,7 +439,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public async Task<TValue> SetValue(TKey key, Func<Task<TValue>> factory, int secord = 0)
         {
-            if (object.Equals(null, key) ) return await factory();
+            if (object.Equals(null, key)) return await factory();
             var value = await factory();
             trySet(key, value, secord);
             return value;
@@ -454,9 +454,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public async Task<TValue> AddOrUpdate(TKey key, Func<Task<TValue>> addValueFactory, Func<Task<TValue>> updateValueFactory, int secord)
         {
-            if (object.Equals(null, key) ) { return await addValueFactory(); }
+            if (object.Equals(null, key)) { return await addValueFactory(); }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 value = await updateValueFactory();
@@ -491,7 +491,7 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public async Task<bool> TryAdd(TKey key, Func<Task<TValue>> factory, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
             var value = await factory();
             trySet(key, value, secord);
             return true;
@@ -505,9 +505,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public async Task<bool> TryUpdate(TKey key, Func<Task<TValue>> updateValueFactory, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 trySet(key, await updateValueFactory(), secord);
@@ -525,9 +525,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public async Task<bool> TryUpdate(TKey key, Func<Task<TValue>> updateValueFactory, TValue comparisonValue, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, comparisonValue)) {
@@ -547,9 +547,9 @@ namespace ToolGood.AntiDuplication
         /// <returns></returns>
         public async Task<bool> TryUpdate(TKey key, Func<Task<TValue>> updateValueFactory, Func<Task<TValue>> comparisonValueFactory, int secord = 0)
         {
-            if (object.Equals(null, key) ) { return false; }
+            if (object.Equals(null, key)) { return false; }
 
-            TValue value = default(TValue);
+            TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
                 if (object.Equals(value, await comparisonValueFactory())) {
