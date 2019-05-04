@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,7 +11,7 @@ namespace ToolGood.AntiDuplication
     /// </summary>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TValue"></typeparam>
-    public class AntiDupCache<TKey, TValue> : IExecuteCache<TKey, TValue>
+    public class AntiDupCache<TKey, TValue> : IConcurrentCache<TKey, TValue>
     {
         private const int _thousand = 1000;
         private readonly int _maxCount;//缓存最高数量
@@ -42,354 +43,548 @@ namespace ToolGood.AntiDuplication
             }
         }
 
+
+        #region 属性
         /// <summary>
-        /// 个数
+        /// 获取缓存个数
         /// </summary>
         public int Count {
-            get { return _map.Count; }
+            get {
+                _lock.EnterReadLock();
+                try {
+                    return _map.Count;
+                } finally { _lock.ExitReadLock(); }
+            }
         }
 
         /// <summary>
-        /// 执行
+        /// 是否为空
         /// </summary>
-        /// <param name="key">值</param>
-        /// <param name="factory">执行方法</param>
+        public bool IsEmpty {
+            get {
+                _lock.EnterReadLock();
+                try {
+                    return _map.Count == 0;
+                } finally { _lock.ExitReadLock(); }
+
+            }
+        }
+        #endregion
+
+        #region TValue
+
+        /// <summary>
+        /// 获取或添加缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <param name="val">值</param>
         /// <returns></returns>
-        public TValue Execute(TKey key, Func<TValue> factory)
+        public TValue GetOrAdd(TKey key, TValue val, int secord = 0)
         {
             // 过期时间为0 则不缓存
-            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return factory(); }
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return val; }
 
-            Tuple<long, TValue> tuple;
-            long lastTicks;
-            _lock.EnterReadLock();
-            try {
-                if (_map.TryGetValue(key, out tuple)) {
-                    if (_expireTicks == -1) return tuple.Item2;
-                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                }
-                lastTicks = _lastTicks;
-            } finally { _lock.ExitReadLock(); }
-
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
             AntiDupLockSlim slim;
             _slimLock.EnterUpgradeableReadLock();
             try {
-                _lock.EnterReadLock();
-                try {
-                    if (_lastTicks != lastTicks) {
-                        if (_map.TryGetValue(key, out tuple)) {
-                            if (_expireTicks == -1) return tuple.Item2;
-                            if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                        }
-                        lastTicks = _lastTicks;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
-                _slimLock.EnterWriteLock();
-                try {
-                    if (_lockDict.TryGetValue(key, out slim) == false) {
-                        slim = new AntiDupLockSlim();
-                        _lockDict[key] = slim;
-                    }
-                    slim.UseCount++;
-                } finally { _slimLock.ExitWriteLock(); }
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                slim = addLock(key);
             } finally { _slimLock.ExitUpgradeableReadLock(); }
-
 
             slim.EnterWriteLock();
             try {
-                _lock.EnterReadLock();
-                try {
-                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (_expireTicks == -1) return tuple.Item2;
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
-                var val = factory();
-                _lock.EnterWriteLock();
-                try {
-                    _lastTicks = DateTime.Now.Ticks;
-                    _map[key] = Tuple.Create(_lastTicks, val);
-                    if (_maxCount > 0) {
-                        if (_queue.Contains(key) == false) {
-                            _queue.Enqueue(key);
-                            if (_queue.Count > _maxCount) _map.Remove(_queue.Dequeue());
-                        }
-                    }
-                } finally { _lock.ExitWriteLock(); }
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                trySet(key, val, secord);
                 return val;
             } finally {
                 slim.ExitWriteLock();
-                _slimLock.EnterWriteLock();
-                try {
-                    slim.UseCount--;
-                    if (slim.UseCount == 0) {
-                        _lockDict.Remove(key);
-                        slim.Dispose();
-                    }
-                } finally { _slimLock.ExitWriteLock(); }
+                removeLock(key, slim);
             }
         }
 
+        /// <summary>
+        /// 设置缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <param name="value">值</param>
+        public void SetValue(TKey key, TValue value, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) return;
+            trySet(key, value, secord);
+        }
 
         /// <summary>
-        /// 执行
+        /// 添加或更新缓存
         /// </summary>
-        /// <param name="key">值</param>
-        /// <param name="secord">每次超时秒数，最多8次</param>
+        /// <param name="key">关键字</param>
+        /// <param name="addValue">添加值</param>
+        /// <param name="updateValue">更新值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public TValue AddOrUpdate(TKey key, TValue addValue, TValue updateValue, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return addValue; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                trySet(key, updateValue);
+                return value;
+            }
+
+            AntiDupLockSlim slim;
+            _slimLock.EnterUpgradeableReadLock();
+            try {
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                slim = addLock(key);
+            } finally { _slimLock.ExitUpgradeableReadLock(); }
+
+            slim.EnterWriteLock();
+            try {
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                trySet(key, addValue, secord);
+                return addValue;
+            } finally {
+                slim.ExitWriteLock();
+                removeLock(key, slim);
+            }
+        }
+
+        /// <summary>
+        /// 尝试获取缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <param name="value">值</param>
+        /// <returns></returns>
+        public bool TryGetValue(TKey key, out TValue value, int secord = 0)
+        {
+            value = default(TValue);
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) { return true; }
+            return false;
+        }
+
+        /// <summary>
+        /// 尝试添加缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="value">值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public bool TryAdd(TKey key, TValue value, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)==false) {
+                trySet(key, value, secord);
+                return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// 尝试更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="newValue">新值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public bool TryUpdate(TKey key, TValue newValue, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                trySet(key, newValue);
+                return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// 尝试更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="newValue">新值</param>
+        /// <param name="comparisonValue">原值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public bool TryUpdate(TKey key, TValue newValue, TValue comparisonValue, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                if (object.Equals(value, comparisonValue)) {
+                    trySet(key, newValue);
+                }
+                return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// 尝试删除缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="value">值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public bool TryRemove(TKey key, out TValue value, int secord = 0)
+        {
+            value = default(TValue);
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+            return tryRemove(key, ref value, secord);
+        }
+        /// <summary>
+        /// 删除缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="secord">每次超时秒数</param>
+        public void Remove(TKey key, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return; }
+            tryRemove(key, secord);
+        }
+        /// <summary>
+        /// 是否包含缓存
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="secord"></param>
+        /// <returns></returns>
+        public bool ContainsKey(TKey key, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            return containsKey(key, secord);
+        }
+
+        #endregion
+
+        #region Func<TValue> factory
+        /// <summary>
+        /// 获取或添加缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="secord">每次超时秒数</param>
         /// <param name="factory">执行方法</param>
         /// <returns></returns>
-        public TValue Execute(TKey key, int secord, Func<TValue> factory)
+        public TValue GetOrAdd(TKey key, Func<TValue> factory, int secord = 0)
         {
             // 过期时间为0 则不缓存
             if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return factory(); }
 
-            Tuple<long, TValue> tuple;
-            long lastTicks;
-            _lock.TryEnterReadLock(secord * _thousand);
-            try {
-                if (_map.TryGetValue(key, out tuple)) {
-                    if (_expireTicks == -1) return tuple.Item2;
-                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                }
-                lastTicks = _lastTicks;
-            } finally { _lock.ExitReadLock(); }
-
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
             AntiDupLockSlim slim;
-            _slimLock.TryEnterUpgradeableReadLock(secord * _thousand);
+            _slimLock.EnterUpgradeableReadLock();
             try {
-                _lock.TryEnterReadLock(secord * _thousand);
-                try {
-                    if (_lastTicks != lastTicks) {
-                        if (_map.TryGetValue(key, out tuple)) {
-                            if (_expireTicks == -1) return tuple.Item2;
-                            if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                        }
-                        lastTicks = _lastTicks;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
-                _slimLock.TryEnterWriteLock(secord * _thousand);
-                try {
-                    if (_lockDict.TryGetValue(key, out slim) == false) {
-                        slim = new AntiDupLockSlim();
-                        _lockDict[key] = slim;
-                    }
-                    slim.UseCount++;
-                } finally { _slimLock.ExitWriteLock(); }
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                slim = addLock(key);
             } finally { _slimLock.ExitUpgradeableReadLock(); }
 
-
-            slim.TryEnterWriteLock(secord * _thousand);
+            slim.EnterWriteLock();
             try {
-                _lock.TryEnterReadLock(secord * _thousand);
-                try {
-                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (_expireTicks == -1) return tuple.Item2;
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
                 var val = factory();
-                _lock.TryEnterWriteLock(secord * _thousand);
-                try {
-                    _lastTicks = DateTime.Now.Ticks;
-                    _map[key] = Tuple.Create(_lastTicks, val);
-                    if (_maxCount > 0) {
-                        if (_queue.Contains(key) == false) {
-                            _queue.Enqueue(key);
-                            if (_queue.Count > _maxCount) _map.Remove(_queue.Dequeue());
-                        }
-                    }
-                } finally { _lock.ExitWriteLock(); }
+                trySet(key, val, secord);
                 return val;
             } finally {
                 slim.ExitWriteLock();
-                _slimLock.TryEnterWriteLock(secord * _thousand);
-                try {
-                    slim.UseCount--;
-                    if (slim.UseCount == 0) {
-                        _lockDict.Remove(key);
-                        slim.Dispose();
-                    }
-                } finally { _slimLock.ExitWriteLock(); }
+                removeLock(key, slim);
             }
         }
+        /// <summary>
+        /// 设置缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="factory">执行方法</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public TValue SetValue(TKey key, Func<TValue> factory, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) return factory();
+            var value = factory();
+            trySet(key, value, secord);
+            return value;
+        }
+        /// <summary>
+        /// 添加或更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="addValueFactory">添加的值</param>
+        /// <param name="updateValueFactory">更新的值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public TValue AddOrUpdate(TKey key, Func<TValue> addValueFactory, Func<TValue> updateValueFactory, int secord)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return addValueFactory(); }
 
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                value = updateValueFactory();
+                trySet(key, value);
+                return value;
+            }
+
+            AntiDupLockSlim slim;
+            _slimLock.EnterUpgradeableReadLock();
+            try {
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                slim = addLock(key);
+            } finally { _slimLock.ExitUpgradeableReadLock(); }
+
+            slim.EnterWriteLock();
+            try {
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                var val = addValueFactory();
+                trySet(key, val, secord);
+                return val;
+            } finally {
+                slim.ExitWriteLock();
+                removeLock(key, slim);
+            }
+        }
+        /// <summary>
+        /// 尝试添加缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="factory"></param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public bool TryAdd(TKey key, Func<TValue> factory, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+            var value = factory();
+            trySet(key, value, secord);
+            return true;
+        }
+        /// <summary>
+        /// 尝试更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="updateValueFactory">更新的值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public bool TryUpdate(TKey key, Func<TValue> updateValueFactory, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                trySet(key, updateValueFactory(), secord);
+                return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// 尝试更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="updateValueFactory">更新的值</param>
+        /// <param name="comparisonValue">原值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public bool TryUpdate(TKey key, Func<TValue> updateValueFactory, TValue comparisonValue, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                if (object.Equals(value, comparisonValue)) {
+                    trySet(key, updateValueFactory(), secord);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        #endregion
+
+        #region async Func<TValue> factory
 #if !NET40
         /// <summary>
-        /// 执行
+        /// 获取或添加缓存
         /// </summary>
-        /// <param name="key">值</param>
+        /// <param name="key">关键字</param>
+        /// <param name="secord">每次超时秒数</param>
         /// <param name="factory">执行方法</param>
         /// <returns></returns>
-        public async Task<TValue> ExecuteAsync(TKey key, Func<Task<TValue>> factory)
+        public async Task<TValue> GetOrAdd(TKey key, Func<Task<TValue>> factory, int secord = 0)
         {
             // 过期时间为0 则不缓存
             if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return await factory(); }
 
-            Tuple<long, TValue> tuple;
-            long lastTicks;
-            _lock.EnterReadLock();
-            try {
-                if (_map.TryGetValue(key, out tuple)) {
-                    if (_expireTicks == -1) return tuple.Item2;
-                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                }
-                lastTicks = _lastTicks;
-            } finally { _lock.ExitReadLock(); }
-
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) { return value; }
 
             AntiDupLockSlim slim;
             _slimLock.EnterUpgradeableReadLock();
             try {
-                _lock.EnterReadLock();
-                try {
-                    if (_lastTicks != lastTicks) {
-                        if (_map.TryGetValue(key, out tuple)) {
-                            if (_expireTicks == -1) return tuple.Item2;
-                            if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                        }
-                        lastTicks = _lastTicks;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
-                _slimLock.EnterWriteLock();
-                try {
-                    if (_lockDict.TryGetValue(key, out slim) == false) {
-                        slim = new AntiDupLockSlim();
-                        _lockDict[key] = slim;
-                    }
-                    slim.UseCount++;
-                } finally { _slimLock.ExitWriteLock(); }
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                slim = addLock(key);
             } finally { _slimLock.ExitUpgradeableReadLock(); }
-
 
             slim.EnterWriteLock();
             try {
-                _lock.EnterReadLock();
-                try {
-                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (_expireTicks == -1) return tuple.Item2;
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
                 var val = await factory();
-                _lock.EnterWriteLock();
-                try {
-                    _lastTicks = DateTime.Now.Ticks;
-                    _map[key] = Tuple.Create(_lastTicks, val);
-                    if (_maxCount > 0) {
-                        if (_queue.Contains(key) == false) {
-                            _queue.Enqueue(key);
-                            if (_queue.Count > _maxCount) _map.Remove(_queue.Dequeue());
-                        }
-                    }
-                } finally { _lock.ExitWriteLock(); }
+                trySet(key, val, secord);
                 return val;
             } finally {
                 slim.ExitWriteLock();
-                _slimLock.EnterWriteLock();
-                try {
-                    slim.UseCount--;
-                    if (slim.UseCount == 0) {
-                        _lockDict.Remove(key);
-                        slim.Dispose();
-                    }
-                } finally { _slimLock.ExitWriteLock(); }
+                removeLock(key, slim);
             }
         }
-
         /// <summary>
-        /// 执行
+        /// 设置缓存
         /// </summary>
-        /// <param name="key">值</param>
-        /// <param name="secord">每次超时秒数，最多8次</param>
+        /// <param name="key">关键字</param>
         /// <param name="factory">执行方法</param>
+        /// <param name="secord">每次超时秒数</param>
         /// <returns></returns>
-        public async Task<TValue> ExecuteAsync(TKey key, int secord, Func<Task<TValue>> factory)
+        public async Task<TValue> SetValue(TKey key, Func<Task<TValue>> factory, int secord = 0)
         {
-            // 过期时间为0 则不缓存
-            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return await factory(); }
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) return await factory();
+            var value = await factory();
+            trySet(key, value, secord);
+            return value;
+        }
+        /// <summary>
+        /// 添加或更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="addValueFactory">添加的值</param>
+        /// <param name="updateValueFactory">更新的值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public async Task<TValue> AddOrUpdate(TKey key, Func<Task<TValue>> addValueFactory, Func<Task<TValue>> updateValueFactory, int secord)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return await addValueFactory(); }
 
-            Tuple<long, TValue> tuple;
-            long lastTicks;
-            _lock.TryEnterReadLock(secord * _thousand);
-            try {
-                if (_map.TryGetValue(key, out tuple)) {
-                    if (_expireTicks == -1) return tuple.Item2;
-                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                }
-                lastTicks = _lastTicks;
-            } finally { _lock.ExitReadLock(); }
-
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                value = await updateValueFactory();
+                trySet(key, value);
+                return value;
+            }
 
             AntiDupLockSlim slim;
-            _slimLock.TryEnterUpgradeableReadLock(secord * _thousand);
+            _slimLock.EnterUpgradeableReadLock();
             try {
-                _lock.TryEnterReadLock(secord * _thousand);
-                try {
-                    if (_lastTicks != lastTicks) {
-                        if (_map.TryGetValue(key, out tuple)) {
-                            if (_expireTicks == -1) return tuple.Item2;
-                            if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                        }
-                        lastTicks = _lastTicks;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
-                _slimLock.TryEnterWriteLock(secord * _thousand);
-                try {
-                    if (_lockDict.TryGetValue(key, out slim) == false) {
-                        slim = new AntiDupLockSlim();
-                        _lockDict[key] = slim;
-                    }
-                    slim.UseCount++;
-                } finally { _slimLock.ExitWriteLock(); }
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                slim = addLock(key);
             } finally { _slimLock.ExitUpgradeableReadLock(); }
 
-
-            slim.TryEnterWriteLock(secord * _thousand);
+            slim.EnterWriteLock();
             try {
-                _lock.TryEnterReadLock(secord * _thousand);
-                try {
-                    if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
-                        if (_expireTicks == -1) return tuple.Item2;
-                        if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) return tuple.Item2;
-                    }
-                } finally { _lock.ExitReadLock(); }
-
-                var val = await factory();
-                _lock.TryEnterWriteLock(secord * _thousand);
-                try {
-                    _lastTicks = DateTime.Now.Ticks;
-                    _map[key] = Tuple.Create(_lastTicks, val);
-                    if (_maxCount > 0) {
-                        if (_queue.Contains(key) == false) {
-                            _queue.Enqueue(key);
-                            if (_queue.Count > _maxCount) _map.Remove(_queue.Dequeue());
-                        }
-                    }
-                } finally { _lock.ExitWriteLock(); }
+                if (checkGet(key, lastTicks, ref value, secord)) { return value; }
+                var val = await addValueFactory();
+                trySet(key, val, secord);
                 return val;
             } finally {
                 slim.ExitWriteLock();
-                _slimLock.TryEnterWriteLock(secord * _thousand);
-                try {
-                    slim.UseCount--;
-                    if (slim.UseCount == 0) {
-                        _lockDict.Remove(key);
-                        slim.Dispose();
-                    }
-                } finally { _slimLock.ExitWriteLock(); }
+                removeLock(key, slim);
             }
+        }
+        /// <summary>
+        /// 尝试添加缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="factory"></param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public async Task<bool> TryAdd(TKey key, Func<Task<TValue>> factory, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+            var value = await factory();
+            trySet(key, value, secord);
+            return true;
+        }
+        /// <summary>
+        /// 尝试更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="updateValueFactory">更新的值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public async Task<bool> TryUpdate(TKey key, Func<Task<TValue>> updateValueFactory, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                trySet(key, await updateValueFactory(), secord);
+                return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// 尝试更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="updateValueFactory">更新的值</param>
+        /// <param name="comparisonValue">原值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public async Task<bool> TryUpdate(TKey key, Func<Task<TValue>> updateValueFactory, TValue comparisonValue, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                if (object.Equals(value, comparisonValue)) {
+                    trySet(key, await updateValueFactory(), secord);
+                }
+                return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// 尝试更新缓存
+        /// </summary>
+        /// <param name="key">关键字</param>
+        /// <param name="updateValueFactory">更新的值</param>
+        /// <param name="comparisonValueFactory">原值</param>
+        /// <param name="secord">每次超时秒数</param>
+        /// <returns></returns>
+        public async Task<bool> TryUpdate(TKey key, Func<Task<TValue>> updateValueFactory, Func<Task<TValue>> comparisonValueFactory, int secord = 0)
+        {
+            if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
+
+            TValue value = default(TValue);
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                if (object.Equals(value,await comparisonValueFactory())) {
+                    trySet(key, await updateValueFactory(), secord);
+                }
+                return true;
+            }
+            return false;
         }
 
 #endif
+        #endregion
+
+        #region 清空
         /// <summary>
         /// 清空
         /// </summary>
@@ -408,22 +603,157 @@ namespace ToolGood.AntiDuplication
             } finally {
                 _lock.ExitWriteLock();
             }
+        } 
+        #endregion
+
+
+        #region private 方法
+        private bool tryGet(TKey key, ref TValue value, ref long lastTicks, int secord = 0)
+        {
+            Tuple<long, TValue> tuple;
+            if (secord == 0) {
+                _lock.EnterReadLock();
+            } else {
+                _lock.TryEnterReadLock(secord * _thousand);
+            }
+            try {
+                if (_map.TryGetValue(key, out tuple)) {
+                    if (_expireTicks == -1) {
+                        value = tuple.Item2;
+                        return true;
+                    }
+                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
+                        value = tuple.Item2;
+                        return true;
+                    }
+                }
+                lastTicks = _lastTicks;
+            } finally { _lock.ExitReadLock(); }
+            return false;
         }
 
-
-        /// <summary>
-        /// 移除KEY
-        /// </summary>
-        /// <param name="key"></param>
-        public void Remove(TKey key)
+        private bool checkGet(TKey key, long lastTicks, ref TValue value, int secord = 0)
         {
-            _lock.EnterWriteLock();
+            Tuple<long, TValue> tuple;
+            if (secord == 0) {
+                _lock.EnterReadLock();
+            } else {
+                _lock.TryEnterReadLock(secord * _thousand);
+            }
+            try {
+                if (_lastTicks != lastTicks && _map.TryGetValue(key, out tuple)) {
+                    if (_expireTicks == -1) {
+                        value = tuple.Item2;
+                        return true;
+                    }
+                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
+                        value = tuple.Item2;
+                        return true;
+                    }
+                }
+            } finally { _lock.ExitReadLock(); }
+            return false;
+        }
+
+        private void trySet(TKey key, TValue value, int secord = 0)
+        {
+            if (secord == 0) {
+                _lock.EnterWriteLock();
+            } else {
+                _lock.TryEnterWriteLock(secord * _thousand);
+            }
+            try {
+                _lastTicks = DateTime.Now.Ticks;
+                _map[key] = Tuple.Create(_lastTicks, value);
+                if (_maxCount > 0) {
+                    if (_queue.Contains(key) == false) {
+                        _queue.Enqueue(key);
+                        if (_queue.Count > _maxCount) _map.Remove(_queue.Dequeue());
+                    }
+                }
+            } finally { _lock.ExitWriteLock(); }
+        }
+
+        private bool tryRemove(TKey key, ref TValue value, int secord = 0)
+        {
+            long lastTicks = 0;
+            if (tryGet(key, ref value, ref lastTicks, secord)) {
+                if (secord == 0) {
+                    _lock.EnterWriteLock();
+                } else {
+                    _lock.TryEnterWriteLock(secord * _thousand);
+                }
+                try {
+                    _map.Remove(key);
+                    return true;
+                } finally { _lock.ExitWriteLock(); }
+            }
+            return false;
+        }
+        private void tryRemove(TKey key, int secord = 0)
+        {
+            if (secord == 0) {
+                _lock.EnterWriteLock();
+            } else {
+                _lock.TryEnterWriteLock(secord * _thousand);
+            }
             try {
                 _map.Remove(key);
-            } finally {
-                _lock.ExitWriteLock();
-            }
+            } finally { _lock.ExitWriteLock(); }
         }
+        private bool containsKey(TKey key, int secord = 0)
+        {
+            if (secord == 0) {
+                _lock.EnterReadLock();
+            } else {
+                _lock.TryEnterReadLock(secord * _thousand);
+            }
+            try {
+                Tuple<long, TValue> tuple;
+                if (_map.TryGetValue(key, out tuple)) {
+                    if (_expireTicks == -1) {
+                         return true;
+                    }
+                    if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
+                        return true;
+                    }
+                }
+
+            } finally { _lock.ExitReadLock(); }
+            return false;
+        }
+
+        private AntiDupLockSlim addLock(TKey key)
+        {
+            AntiDupLockSlim slim;
+            _slimLock.EnterWriteLock();
+            try {
+                if (_lockDict.TryGetValue(key, out slim) == false) {
+                    slim = new AntiDupLockSlim();
+                    _lockDict[key] = slim;
+                }
+                slim.UseCount++;
+            } finally { _slimLock.ExitWriteLock(); }
+            return slim;
+        }
+
+        private void removeLock(TKey key, AntiDupLockSlim slim)
+        {
+            _slimLock.EnterWriteLock();
+            try {
+                slim.UseCount--;
+                if (slim.UseCount == 0) {
+                    _lockDict.Remove(key);
+                    slim.Dispose();
+                }
+            } finally { _slimLock.ExitWriteLock(); }
+        }
+
+        #endregion
+
+
+
+
     }
 
 }

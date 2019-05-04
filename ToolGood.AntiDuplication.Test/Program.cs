@@ -74,7 +74,7 @@ namespace ToolGood.AntiDuplication.Test
                 antiDupCache.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    antiDupCache.Execute(j, () => {
+                    antiDupCache.GetOrAdd(j, () => {
                         Thread.Sleep(1);
                         return j;
                     });
@@ -89,7 +89,7 @@ namespace ToolGood.AntiDuplication.Test
                 antiDupQueue.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    antiDupQueue.Execute(j, () => {
+                    antiDupQueue.GetOrAdd(j, () => {
                         Thread.Sleep(1);
                         return j;
                     });
@@ -104,7 +104,7 @@ namespace ToolGood.AntiDuplication.Test
                 dictCache.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    dictCache.Execute(j, () => {
+                    dictCache.GetOrAdd(j, () => {
                         Thread.Sleep(1);
                         return j;
                     });
@@ -161,7 +161,7 @@ namespace ToolGood.AntiDuplication.Test
                 antiDupCache.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    antiDupCache.Execute(j, () => {
+                    antiDupCache.GetOrAdd(j, () => {
                         return j;
                     });
                 });
@@ -175,7 +175,7 @@ namespace ToolGood.AntiDuplication.Test
                 antiDupQueue.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    antiDupQueue.Execute(j, () => {
+                    antiDupQueue.GetOrAdd(j, () => {
                         return j;
                     });
                 });
@@ -189,7 +189,7 @@ namespace ToolGood.AntiDuplication.Test
                 dictCache.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    dictCache.Execute(j, () => {
+                    dictCache.GetOrAdd(j, () => {
                         return j;
                     });
                 });
@@ -247,7 +247,7 @@ namespace ToolGood.AntiDuplication.Test
                 antiDupCache.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    antiDupCache.Execute(j, () => {
+                    antiDupCache.GetOrAdd(j, () => {
                         Thread.Sleep(1);
                         return j;
                     });
@@ -262,7 +262,7 @@ namespace ToolGood.AntiDuplication.Test
                 antiDupQueue.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    antiDupQueue.Execute(j, () => {
+                    antiDupQueue.GetOrAdd(j, () => {
                         Thread.Sleep(1);
                         return j;
                     });
@@ -277,7 +277,7 @@ namespace ToolGood.AntiDuplication.Test
                 dictCache.Clear();
                 stopwatch = Stopwatch.StartNew();
                 Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = i }, (j) => {
-                    dictCache.Execute(j, () => {
+                    dictCache.GetOrAdd(j, () => {
                         Thread.Sleep(1);
                         return j;
                     });
