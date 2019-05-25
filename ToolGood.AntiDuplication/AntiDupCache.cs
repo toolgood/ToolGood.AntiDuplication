@@ -112,11 +112,11 @@ namespace ToolGood.AntiDuplication
         /// </summary>
         /// <param name="key">关键字</param>
         /// <param name="secord">每次超时秒数</param>
-        /// <param name="value">值</param>
-        public void SetValue(TKey key, TValue value, int secord = 0)
+        /// <param name="val">值</param>
+        public void SetValue(TKey key, TValue val, int secord = 0)
         {
             if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) return;
-            trySet(key, value, secord);
+            trySet(key, val, secord);
         }
 
         /// <summary>
@@ -161,15 +161,15 @@ namespace ToolGood.AntiDuplication
         /// </summary>
         /// <param name="key">关键字</param>
         /// <param name="secord">每次超时秒数</param>
-        /// <param name="value">值</param>
+        /// <param name="val">值</param>
         /// <returns></returns>
-        public bool TryGetValue(TKey key, out TValue value, int secord = 0)
+        public bool TryGetValue(TKey key, out TValue val, int secord = 0)
         {
-            value = default;
+            val = default;
             if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
 
             long lastTicks = 0;
-            if (tryGet(key, ref value, ref lastTicks, secord)) { return true; }
+            if (tryGet(key, ref val, ref lastTicks, secord)) { return true; }
             return false;
         }
 
@@ -177,16 +177,17 @@ namespace ToolGood.AntiDuplication
         /// 尝试添加缓存
         /// </summary>
         /// <param name="key">关键字</param>
-        /// <param name="value">值</param>
+        /// <param name="val">值</param>
         /// <param name="secord">每次超时秒数</param>
         /// <returns></returns>
-        public bool TryAdd(TKey key, TValue value, int secord = 0)
+        public bool TryAdd(TKey key, TValue val, int secord = 0)
         {
             if (object.Equals(null, key) || _expireTicks == 0L || _maxCount == 0) { return false; }
 
             long lastTicks = 0;
-            if (tryGet(key, ref value, ref lastTicks, secord)==false) {
-                trySet(key, value, secord);
+            TValue value = default;
+            if (tryGet(key, ref value, ref lastTicks, secord) == false) {
+                trySet(key, val, secord);
                 return true;
             }
             return false;
@@ -573,7 +574,7 @@ namespace ToolGood.AntiDuplication
             TValue value = default;
             long lastTicks = 0;
             if (tryGet(key, ref value, ref lastTicks, secord)) {
-                if (object.Equals(value,await comparisonValueFactory())) {
+                if (object.Equals(value, await comparisonValueFactory())) {
                     trySet(key, await updateValueFactory(), secord);
                 }
                 return true;
@@ -603,7 +604,7 @@ namespace ToolGood.AntiDuplication
             } finally {
                 _lock.ExitWriteLock();
             }
-        } 
+        }
         #endregion
 
 
@@ -712,7 +713,7 @@ namespace ToolGood.AntiDuplication
                 Tuple<long, TValue> tuple;
                 if (_map.TryGetValue(key, out tuple)) {
                     if (_expireTicks == -1) {
-                         return true;
+                        return true;
                     }
                     if (tuple.Item1 + _expireTicks > DateTime.Now.Ticks) {
                         return true;

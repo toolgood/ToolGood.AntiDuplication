@@ -105,11 +105,11 @@ namespace ToolGood.AntiDuplication
         /// </summary>
         /// <param name="key">关键字</param>
         /// <param name="secord">每次超时秒数</param>
-        /// <param name="value">值</param>
-        public void SetValue(TKey key, TValue value, int secord = 0)
+        /// <param name="val">值</param>
+        public void SetValue(TKey key, TValue val, int secord = 0)
         {
             if (object.Equals(null, key) || _maxCount == 0) return;
-            trySet(key, value, secord);
+            trySet(key, val, secord);
         }
 
         /// <summary>
@@ -170,16 +170,17 @@ namespace ToolGood.AntiDuplication
         /// 尝试添加缓存
         /// </summary>
         /// <param name="key">关键字</param>
-        /// <param name="value">值</param>
+        /// <param name="val">值</param>
         /// <param name="secord">每次超时秒数</param>
         /// <returns></returns>
-        public bool TryAdd(TKey key, TValue value, int secord = 0)
+        public bool TryAdd(TKey key, TValue val, int secord = 0)
         {
             if (object.Equals(null, key) || _maxCount == 0) { return false; }
 
             long lastTicks = 0;
+            TValue value = default;
             if (tryGet(key, ref value, ref lastTicks, secord) == false) {
-                trySet(key, value, secord);
+                trySet(key, val, secord);
                 return true;
             }
             return false;
